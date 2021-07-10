@@ -15,7 +15,8 @@
         }
     },
     "require": {
-        "spatie/image-optimizer": "1.3.2"
+        "spatie/image-optimizer": "1.3.2",
+        "intervention/image": "^2.5"
     },
     "require-dev": {
         "phpro/grumphp-shim": "^1.0"

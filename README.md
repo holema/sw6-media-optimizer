@@ -39,6 +39,9 @@ bin/console rl:media:optimize
 
 Tip: use the `--info` option to show all enabled optimizers.
 
+Tip: use the `--max-width=xx` option to crop all images to a max width in px. Leave empty to only optimze the image
+To crop the image [Intervention Image](https://github.com/Intervention/image) is used
+
 #### Plugin update (composer)
 ```
 composer update runelaenen/sw6-media-optimizer

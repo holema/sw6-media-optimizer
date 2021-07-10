@@ -2,6 +2,7 @@
 
 namespace RuneLaenen\MediaOptimizer\Command;
 
+use Intervention\Image\ImageManager;
 use Shopware\Core\Content\Media\MediaEntity;
 use Shopware\Core\Content\Media\Pathname\UrlGeneratorInterface;
 use Shopware\Core\Framework\Context;
@@ -32,6 +33,16 @@ class MediaOptimizeCommand extends Command
     private $optimizerChain;
 
     /**
+     * @var Image
+     */
+    private $imageProzessor;
+
+    /**
+     * @var int
+     */
+    private $maxWidth;
+
+    /**
      * @var int
      */
     private $batchSize;
@@ -60,13 +71,17 @@ class MediaOptimizeCommand extends Command
         EntityRepositoryInterface $mediaRepository,
         OptimizerChain $optimizerChain,
         UrlGeneratorInterface $urlGenerator,
-        string $projectDir
-    ) {
+        string $projectDir,
+        ImageManager $image
+    )
+    {
         parent::__construct();
         $this->mediaRepository = $mediaRepository;
         $this->optimizerChain = $optimizerChain;
         $this->urlGenerator = $urlGenerator;
         $this->projectDir = $projectDir;
+        $this->imageProzessor = $image;
+        $this->imageProzessor->configure(array('driver' => 'imagick'));
     }
 
     public function configure(): void
@@ -78,6 +93,13 @@ class MediaOptimizeCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Number of entities per iteration',
                 '50'
+            )
+            ->addOption(
+                'max-width',
+                'mw',
+                InputOption::VALUE_REQUIRED,
+                'Max Width of Image in px',
+                '0'
             );
     }
 
@@ -97,12 +119,13 @@ class MediaOptimizeCommand extends Command
             $table->setHeaders([
                 'Optimizer',
             ])
-            ->setRows($rows);
+                ->setRows($rows);
             $table->render();
 
             return 0;
         }
         $this->batchSize = $this->getBatchSizeFromInput($input);
+        $this->maxWidth = $this->getMaxWidthFromInput($input);
         $context = Context::createDefaultContext();
 
         $mediaIterator = new RepositoryIterator($this->mediaRepository, $context, $this->createCriteria());
@@ -138,7 +161,18 @@ class MediaOptimizeCommand extends Command
             throw new \UnexpectedValueException('Batch size must be numeric');
         }
 
-        return (int) $rawInput;
+        return (int)$rawInput;
+    }
+
+    private function getMaxWidthFromInput(InputInterface $input): int
+    {
+        $rawInput = $input->getOption('max-width');
+
+        if (\is_array($rawInput) || !is_numeric($rawInput)) {
+            throw new \UnexpectedValueException('Max-Width size must be numeric');
+        }
+
+        return (int)$rawInput;
     }
 
     private function createCriteria(): Criteria
@@ -162,6 +196,18 @@ class MediaOptimizeCommand extends Command
 
         $sizePre = filesize($mediaLocation);
         $this->sizePre += $sizePre;
+        if ($this->maxWidth > 0 && exif_imagetype($mediaLocation) !== false) {
+            try {
+                $img = $this->imageProzessor->make($mediaLocation);
+                $img->resize($this->maxWidth, null, function ($constraint) {
+                    $constraint->aspectRatio();
+                });
+                $img->save();
+            } catch (\Exception $e) {
+
+            }
+
+        }
 
         $this->optimizerChain->optimize($mediaLocation);
 
